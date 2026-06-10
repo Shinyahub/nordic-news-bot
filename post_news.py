@@ -12,7 +12,6 @@ Claude APIで日本語要約し、Pushover経由でiPhoneに通知する。
 import os
 import json
 import hashlib
-import urllib.parse
 import requests
 import feedparser
 import anthropic
@@ -201,10 +200,9 @@ def build_tweet(article: dict, summary: str, comment: str, is_buzz: bool = False
 # Pushover 通知
 # ──────────────────────────────────────────
 
-def build_x_url_scheme(tweet_text: str) -> str:
+def build_x_url_scheme() -> str:
     """XアプリのURLスキームを生成（タップするとXの投稿画面が開く）"""
-    encoded = urllib.parse.quote(tweet_text)
-    return f"twitter://post?message={encoded}"
+    return "twitter://post"
 
 
 def send_pushover(title: str, message: str, url: str, url_title: str) -> bool:
@@ -255,8 +253,8 @@ def process_and_notify(article: dict, posted_ids: set, is_buzz: bool = False) ->
     if comment:
         notif_message += f"\n💬 {comment}"
 
-    # URLスキーム：タップするとXアプリの投稿画面がツイート文入力済みで開く
-    x_url = build_x_url_scheme(tweet)
+    # URLスキーム：タップするとXアプリの投稿画面が開く
+    x_url = build_x_url_scheme()
 
     if send_pushover(notif_title, notif_message, url=x_url, url_title="Xで投稿する →"):
         posted_ids.add(article["id"])
