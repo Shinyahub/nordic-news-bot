@@ -136,6 +136,8 @@ def summarize_with_claude(article: dict) -> dict:
         messages=[{"role": "user", "content": prompt}],
     )
     raw = message.content[0].text.strip()
+    # Claudeが ```json ... ``` で返してくることがあるので除去
+    raw = raw.replace("```json", "").replace("```", "").strip()
     try:
         result = json.loads(raw)
         return {
