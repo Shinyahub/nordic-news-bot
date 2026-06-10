@@ -136,7 +136,7 @@ def summarize_with_claude(article: dict) -> dict:
 {article['summary']}"""
 
     message = _claude_client().messages.create(
-        model="claude-sonnet-4-20250514",
+        model="claude-sonnet-4-5",
         max_tokens=200,
         messages=[{"role": "user", "content": prompt}],
     )
@@ -170,7 +170,7 @@ def score_buzz(article: dict) -> int:
 
     try:
         message = _claude_client().messages.create(
-            model="claude-sonnet-4-20250514",
+            model="claude-sonnet-4-5",
             max_tokens=10,
             messages=[{"role": "user", "content": prompt}],
         )
