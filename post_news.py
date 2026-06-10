@@ -196,6 +196,7 @@ def is_local_news(article: dict) -> bool:
 
 
 
+def score_buzz(article: dict) -> int:
     """記事の「日本人が読んで面白い度」を1〜10点で採点して返す"""
     prompt = f"""以下は北欧のニュース記事です。
 「日本人が読んで面白い・驚く・笑える・シェアしたくなる度」を1〜10の整数で採点してください。
@@ -311,11 +312,8 @@ def process_and_notify(article: dict, posted_ids: set, is_buzz: bool = False) ->
     buzz_label = "🔥 バズ記事！ " if is_buzz else ""
     notif_title = f"{buzz_label}{article['country']}"
 
-    # 通知本文（要約＋感想＋URL）
-    notif_message = f"{summary}"
-    if comment:
-        notif_message += f"\n💬 {comment}"
-    notif_message += f"\n\n🔗 {article['url']}"
+    # 通知本文＝ツイートそのまま（ハッシュタグ含む、コピペして投稿できる）
+    notif_message = tweet
 
     # URLスキーム：タップするとXアプリの投稿画面が開く
     x_url = build_x_url_scheme()
