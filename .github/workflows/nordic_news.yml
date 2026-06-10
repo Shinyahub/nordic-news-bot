@@ -26,7 +26,7 @@ jobs:
       - name: リポジトリをチェックアウト
         uses: actions/checkout@v4
 
-      # 投稿済みIDファイルをキャッシュ（重複投稿を防ぐ）
+      # 投稿済みIDファイルをキャッシュ（重複通知を防ぐ）
       - name: 投稿済みIDキャッシュを復元
         uses: actions/cache@v4
         with:
@@ -46,9 +46,7 @@ jobs:
 
       - name: ニュース取得・要約・投稿を実行
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          X_API_KEY:             ${{ secrets.X_API_KEY }}
-          X_API_KEY_SECRET:      ${{ secrets.X_API_KEY_SECRET }}
-          X_ACCESS_TOKEN:        ${{ secrets.X_ACCESS_TOKEN }}
-          X_ACCESS_TOKEN_SECRET: ${{ secrets.X_ACCESS_TOKEN_SECRET }}
+          ANTHROPIC_API_KEY:  ${{ secrets.ANTHROPIC_API_KEY }}
+          PUSHOVER_APP_TOKEN: ${{ secrets.PUSHOVER_APP_TOKEN }}
+          PUSHOVER_USER_KEY:  ${{ secrets.PUSHOVER_USER_KEY }}
         run: python post_news.py
