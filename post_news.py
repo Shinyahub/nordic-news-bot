@@ -29,26 +29,38 @@ from pathlib import Path
 # 通常投稿フィード
 # 各国の「国内・地域ニュース」専用フィードを優先して使用
 NEWS_FEEDS = {
-    # ノルウェー
-    "🇳🇴 ノルウェー(NRK国内)":      "https://www.nrk.no/nyheter/siste.rss",
-    "🇳🇴 ノルウェー(NRK社会)":      "https://www.nrk.no/livsstil/siste.rss",
-    # スウェーデン
+    # ノルウェー（現地語）
+    "🇳🇴 ノルウェー(NRK)":          "https://www.nrk.no/nyheter/siste.rss",
+    "🇳🇴 ノルウェー(Aftenposten)":   "https://www.aftenposten.no/rss",
+    "🇳🇴 ノルウェー(VG)":            "https://vg.no/rss/feed/?format=rss",
+    # ノルウェー（英語）
+    "🇳🇴 ノルウェー(The Local)":     "https://feeds.thelocal.com/rss/no",
+    # スウェーデン（現地語）
     "🇸🇪 スウェーデン(SVT国内)":     "https://www.svt.se/nyheter/inrikes/rss.xml",
-    "🇸🇪 スウェーデン(SVT地域)":     "https://www.svt.se/nyheter/lokalt/rss.xml",
-    # フィンランド
-    "🇫🇮 フィンランド(YLE国内)":     "https://feeds.yle.fi/uutiset/v1/recent.rss?publisherIds=YLE_UUTISET&formatId=49",
+    "🇸🇪 スウェーデン(Aftonbladet)": "https://www.aftonbladet.se/rss.xml",
+    # スウェーデン（英語）
+    "🇸🇪 スウェーデン(The Local)":   "https://feeds.thelocal.com/rss/se",
+    # フィンランド（現地語）
+    "🇫🇮 フィンランド(YLE)":         "https://feeds.yle.fi/uutiset/v1/recent.rss?publisherIds=YLE_UUTISET&formatId=49",
     "🇫🇮 フィンランド(YLE文化)":     "https://feeds.yle.fi/uutiset/v1/recent.rss?publisherIds=YLE_UUTISET&formatId=57",
-    # デンマーク
+    # フィンランド（英語）
+    "🇫🇮 フィンランド(YLE英語)":     "https://feeds.yle.fi/uutiset/v1/recent.rss?publisherIds=YLE_UUTISET&language=fi-FI&region=fi&languageCodes=en",
+    # デンマーク（現地語）
     "🇩🇰 デンマーク(DR国内)":        "https://www.dr.dk/nyheder/service/feeds/indland",
     "🇩🇰 デンマーク(DR地域)":        "https://www.dr.dk/nyheder/service/feeds/regionale",
+    # デンマーク（英語）
+    "🇩🇰 デンマーク(CPH Post)":      "https://cphpost.dk/?format=feed&type=rss",
 }
 
 # バズ検知フィード（各国人気・注目記事）
 BUZZ_FEEDS = {
     "🇳🇴 ノルウェー(NRK人気)":      "https://www.nrk.no/toppsaker.rss",
-    "🇸🇪 スウェーデン(SVT国内)":     "https://www.svt.se/nyheter/inrikes/rss.xml",
-    "🇫🇮 フィンランド(YLE国内)":     "https://feeds.yle.fi/uutiset/v1/recent.rss?publisherIds=YLE_UUTISET&formatId=49",
-    "🇩🇰 デンマーク(DR国内)":        "https://www.dr.dk/nyheder/service/feeds/indland",
+    "🇳🇴 ノルウェー(The Local)":    "https://feeds.thelocal.com/rss/no",
+    "🇸🇪 スウェーデン(SVT国内)":    "https://www.svt.se/nyheter/inrikes/rss.xml",
+    "🇸🇪 スウェーデン(The Local)":  "https://feeds.thelocal.com/rss/se",
+    "🇫🇮 フィンランド(YLE)":        "https://feeds.yle.fi/uutiset/v1/recent.rss?publisherIds=YLE_UUTISET&formatId=49",
+    "🇩🇰 デンマーク(DR国内)":       "https://www.dr.dk/nyheder/service/feeds/indland",
+    "🇩🇰 デンマーク(CPH Post)":     "https://cphpost.dk/?format=feed&type=rss",
 }
 
 BUZZ_THRESHOLD = 8
