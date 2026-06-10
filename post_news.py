@@ -308,12 +308,16 @@ def process_and_notify(article: dict, posted_ids: set, is_buzz: bool = False) ->
     tweet = build_tweet(article, summary, comment, is_buzz=is_buzz)
     print(f"  [TWEET] ({len(tweet)}文字)\n{tweet}\n")
 
-    # Pushover通知のタイトル
-    buzz_label = "🔥 バズ記事！ " if is_buzz else ""
-    notif_title = f"{buzz_label}{article['country']}"
+    # 通知タイトル：国旗＋国名のみ（メディア名は除く）
+    # 例：「🇳🇴 ノルウェー」「🔥 🇸🇪 スウェーデン」
+    flag_and_name = article["country"].split("(")[0].strip()  # "(NRK国内)"などを除去
+    buzz_label = "🔥 " if is_buzz else ""
+    notif_title = f"{buzz_label}{flag_and_name}"
 
-    # 通知本文＝ツイートそのまま（ハッシュタグ含む、コピペして投稿できる）
-    notif_message = tweet
+    # 通知本文：ツイート文から冒頭の国ラベル行を除いたもの（タイトルと重複するため）
+    # ツイートの1行目（国名ラベル）を除いて残りをそのまま使う
+    tweet_lines = tweet.split("\n")
+    notif_message = "\n".join(tweet_lines[1:]).lstrip("\n")
 
     # URLスキーム：タップするとXアプリの投稿画面が開く
     x_url = build_x_url_scheme()
