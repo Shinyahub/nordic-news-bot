@@ -1,0 +1,54 @@
+name: Nordic News Bot
+
+on:
+  # ──────────────────────────────────────────
+  # 1日6回 定期実行（UTC基準）
+  # UTC 00:00 → JST 09:00
+  # UTC 04:00 → JST 13:00
+  # UTC 08:00 → JST 17:00
+  # UTC 12:00 → JST 21:00
+  # UTC 16:00 → JST 01:00
+  # UTC 20:00 → JST 05:00
+  # ──────────────────────────────────────────
+  schedule:
+    - cron: '0 0,4,8,12,16,20 * * *'
+
+  # cron-job.org などの外部サービスから叩けるよう
+  # 手動トリガーも有効化しておく（信頼性向上のため）
+  workflow_dispatch:
+
+jobs:
+  post-news:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: リポジトリをチェックアウト
+        uses: actions/checkout@v4
+
+      # 投稿済みIDファイルをキャッシュ（重複投稿を防ぐ）
+      - name: 投稿済みIDキャッシュを復元
+        uses: actions/cache@v4
+        with:
+          path: posted_ids.json
+          key: posted-ids-${{ github.run_id }}
+          restore-keys: |
+            posted-ids-
+
+      - name: Python セットアップ
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: 依存パッケージをインストール
+        run: pip install -r requirements.txt
+
+      - name: ニュース取得・要約・投稿を実行
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          X_API_KEY:             ${{ secrets.X_API_KEY }}
+          X_API_KEY_SECRET:      ${{ secrets.X_API_KEY_SECRET }}
+          X_ACCESS_TOKEN:        ${{ secrets.X_ACCESS_TOKEN }}
+          X_ACCESS_TOKEN_SECRET: ${{ secrets.X_ACCESS_TOKEN_SECRET }}
+        run: python post_news.py
