@@ -231,7 +231,22 @@ def is_local_news(article: dict) -> bool:
 
 def build_tweet(article: dict, summary: str, comment: str, is_buzz: bool = False) -> str:
     """ツイート文を組み立てる。バズ記事には🔥ラベルを付ける"""
-    hashtags = "#北欧ニュース #Nordic"
+
+    # 国別ハッシュタグ
+    country_hashtags = {
+        "ノルウェー": "#ノルウェー #Norway",
+        "スウェーデン": "#スウェーデン #Sweden",
+        "フィンランド": "#フィンランド #Finland",
+        "デンマーク": "#デンマーク #Denmark",
+    }
+    # 記事の国名に対応するハッシュタグを選択
+    extra = ""
+    for key, tag in country_hashtags.items():
+        if key in article["country"]:
+            extra = f" {tag}"
+            break
+
+    hashtags = f"#北欧 #Nordic #北欧ニュース{extra}"
     label = f"{article['country']} 🔥 #話題\n" if is_buzz else f"{article['country']}\n"
     comment_line = f"💬 {comment}\n" if comment else ""
     tweet = f"{label}{summary}\n{comment_line}\n🔗 {article['url']}\n\n{hashtags}"
