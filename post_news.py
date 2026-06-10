@@ -2,26 +2,27 @@
 """
 Nordic News Bot
 北欧（ノルウェー・スウェーデン・フィンランド・デンマーク）のニュースを
-Claude APIで日本語要約してXに自動投稿するスクリプト
+Claude APIで日本語要約し、Pushover経由でiPhoneに通知する。
+ユーザーが通知をタップするとXアプリがツイート画面を開く（半自動投稿）。
 
-通常モード : 各国フィードから最新1件ずつ投稿
-バズモード : 各国の最新5件をClaudeが「面白さ」採点し、8点以上なら追加投稿
+通常モード : 各国フィードから最新1件ずつ通知
+バズモード : 各国の最新5件をClaudeが「面白さ」採点し、8点以上なら追加通知
 """
 
 import os
 import json
 import hashlib
+import urllib.parse
+import requests
 import feedparser
 import anthropic
-import tweepy
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from pathlib import Path
 
 # ──────────────────────────────────────────
 # 設定
 # ──────────────────────────────────────────
 
-# 通常投稿フィード（最新1件）
 NEWS_FEEDS = {
     "🇳🇴 ノルウェー(NRK)":  "https://www.nrk.no/nyheter/siste.rss",
     "🇸🇪 スウェーデン(SVT)": "https://www.svt.se/nyheter/rss.xml",
@@ -29,23 +30,21 @@ NEWS_FEEDS = {
     "🇩🇰 デンマーク(DR)":   "https://www.dr.dk/nyheder/service/feeds/allenyheder",
 }
 
-# バズ検知フィード（最新5件をスコアリング）
-# 人気記事フィードがある国はそちらを、ない国は通常フィードを流用
 BUZZ_FEEDS = {
-    "🇳🇴 ノルウェー(NRK)":  "https://www.nrk.no/toppsaker.rss",          # NRK人気記事
-    "🇸🇪 スウェーデン(SVT)": "https://www.svt.se/nyheter/rss.xml",        # 通常フィード流用
+    "🇳🇴 ノルウェー(NRK)":  "https://www.nrk.no/toppsaker.rss",
+    "🇸🇪 スウェーデン(SVT)": "https://www.svt.se/nyheter/rss.xml",
     "🇫🇮 フィンランド(YLE)": "https://feeds.yle.fi/uutiset/v1/recent.rss?publisherIds=YLE_UUTISET",
     "🇩🇰 デンマーク(DR)":   "https://www.dr.dk/nyheder/service/feeds/allenyheder",
 }
 
-# バズ判定の閾値（この点数以上なら追加ツイート）
 BUZZ_THRESHOLD = 8
-
-# 1実行あたりのバズ追加投稿の上限（暴走防止）
 BUZZ_MAX_POSTS = 2
 
 POSTED_IDS_FILE = Path("posted_ids.json")
 MAX_TWEET_LENGTH = 280
+
+# Pushover API エンドポイント
+PUSHOVER_API_URL = "https://api.pushover.net/1/messages.json"
 
 
 # ──────────────────────────────────────────
@@ -75,7 +74,6 @@ def article_id(url: str) -> str:
 # ──────────────────────────────────────────
 
 def parse_feed_entries(feed_dict: dict, max_per_country: int = 1) -> list[dict]:
-    """フィード辞書から記事リストを取得する汎用関数"""
     articles = []
     for country, url in feed_dict.items():
         try:
@@ -83,10 +81,9 @@ def parse_feed_entries(feed_dict: dict, max_per_country: int = 1) -> list[dict]:
             if not feed.entries:
                 print(f"[WARN] {country}: フィードが空です")
                 continue
-
             for entry in feed.entries[:max_per_country]:
-                link  = entry.get("link", "")
-                title = entry.get("title", "")
+                link    = entry.get("link", "")
+                title   = entry.get("title", "")
                 summary = entry.get("summary", entry.get("description", ""))
                 if not link or not title:
                     continue
@@ -98,10 +95,8 @@ def parse_feed_entries(feed_dict: dict, max_per_country: int = 1) -> list[dict]:
                     "id":      article_id(link),
                 })
             print(f"[OK] {country}: {len(feed.entries[:max_per_country])}件取得")
-
         except Exception as e:
             print(f"[ERROR] {country}: フィード取得失敗 - {e}")
-
     return articles
 
 
@@ -175,24 +170,15 @@ def score_buzz(article: dict) -> int:
             messages=[{"role": "user", "content": prompt}],
         )
         score = int(message.content[0].text.strip())
-        return max(1, min(10, score))  # 1〜10にクランプ
+        return max(1, min(10, score))
     except Exception as e:
         print(f"[WARN] スコアリング失敗: {e}")
         return 0
 
 
 # ──────────────────────────────────────────
-# X (Twitter) 投稿
+# ツイート文の組み立て
 # ──────────────────────────────────────────
-
-def get_x_client():
-    return tweepy.Client(
-        consumer_key=os.environ["X_API_KEY"],
-        consumer_secret=os.environ["X_API_KEY_SECRET"],
-        access_token=os.environ["X_ACCESS_TOKEN"],
-        access_token_secret=os.environ["X_ACCESS_TOKEN_SECRET"],
-    )
-
 
 def build_tweet(article: dict, summary: str, comment: str, is_buzz: bool = False) -> str:
     """ツイート文を組み立てる。バズ記事には🔥ラベルを付ける"""
@@ -209,19 +195,42 @@ def build_tweet(article: dict, summary: str, comment: str, is_buzz: bool = False
     return tweet
 
 
-def post_to_x(tweet_text: str) -> bool:
+# ──────────────────────────────────────────
+# Pushover 通知
+# ──────────────────────────────────────────
+
+def build_x_url_scheme(tweet_text: str) -> str:
+    """XアプリのURLスキームを生成（タップするとXの投稿画面が開く）"""
+    encoded = urllib.parse.quote(tweet_text)
+    return f"twitter://post?message={encoded}"
+
+
+def send_pushover(title: str, message: str, url: str, url_title: str) -> bool:
+    """Pushover経由でiPhoneに通知を送る"""
+    payload = {
+        "token":     os.environ["PUSHOVER_APP_TOKEN"],
+        "user":      os.environ["PUSHOVER_USER_KEY"],
+        "title":     title,
+        "message":   message,
+        "url":       url,
+        "url_title": url_title,
+        "priority":  0,  # 通常通知（-1=静音 / 0=通常 / 1=高優先）
+    }
     try:
-        client = get_x_client()
-        response = client.create_tweet(text=tweet_text)
-        print(f"[POSTED] Tweet ID: {response.data['id']}")
-        return True
-    except tweepy.TweepyException as e:
-        print(f"[ERROR] X投稿失敗: {e}")
+        resp = requests.post(PUSHOVER_API_URL, data=payload, timeout=10)
+        if resp.status_code == 200:
+            print(f"  [NOTIFIED] Pushover送信成功")
+            return True
+        else:
+            print(f"  [ERROR] Pushover失敗: {resp.status_code} {resp.text}")
+            return False
+    except Exception as e:
+        print(f"  [ERROR] Pushover例外: {e}")
         return False
 
 
-def process_and_post(article: dict, posted_ids: set, is_buzz: bool = False) -> bool:
-    """要約→ツイート組み立て→投稿 の一連処理。投稿成功でTrueを返す"""
+def process_and_notify(article: dict, posted_ids: set, is_buzz: bool = False) -> bool:
+    """要約→ツイート文組み立て→Pushover通知 の一連処理"""
     try:
         result = summarize_with_claude(article)
         summary = result["summary"]
@@ -235,7 +244,19 @@ def process_and_post(article: dict, posted_ids: set, is_buzz: bool = False) -> b
     tweet = build_tweet(article, summary, comment, is_buzz=is_buzz)
     print(f"  [TWEET] ({len(tweet)}文字)\n{tweet}\n")
 
-    if post_to_x(tweet):
+    # Pushover通知のタイトル
+    buzz_label = "🔥 バズ記事！ " if is_buzz else ""
+    notif_title = f"{buzz_label}{article['country']}"
+
+    # 通知本文（要約＋感想）
+    notif_message = f"{summary}"
+    if comment:
+        notif_message += f"\n💬 {comment}"
+
+    # URLスキーム：タップするとXアプリの投稿画面がツイート文入力済みで開く
+    x_url = build_x_url_scheme(tweet)
+
+    if send_pushover(notif_title, notif_message, url=x_url, url_title="Xで投稿する →"):
         posted_ids.add(article["id"])
         return True
     return False
@@ -249,26 +270,25 @@ def main():
     print(f"\n=== Nordic News Bot 起動 {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')} ===\n")
 
     posted_ids = load_posted_ids()
-    total_posted = 0
+    total_notified = 0
 
-    # ── 1. 通常投稿：各国最新1件 ──────────────────
-    print("── 通常投稿フェーズ ──────────────────────────")
+    # ── 1. 通常通知：各国最新1件 ──────────────────
+    print("── 通常通知フェーズ ──────────────────────────")
     regular_articles = parse_feed_entries(NEWS_FEEDS, max_per_country=1)
 
     for article in regular_articles:
         if article["id"] in posted_ids:
-            print(f"[SKIP] 投稿済み: {article['country']}")
+            print(f"[SKIP] 通知済み: {article['country']}")
             continue
         print(f"\n[REGULAR] {article['country']} / {article['title'][:50]}...")
-        if process_and_post(article, posted_ids, is_buzz=False):
-            total_posted += 1
+        if process_and_notify(article, posted_ids, is_buzz=False):
+            total_notified += 1
 
     # ── 2. バズ検知：各国5件をスコアリング ────────
     print("\n── バズ検知フェーズ ──────────────────────────")
     buzz_articles = parse_feed_entries(BUZZ_FEEDS, max_per_country=5)
-    buzz_posted = 0
+    buzz_notified = 0
 
-    # スコアリング対象：未投稿記事のみ
     candidates = [a for a in buzz_articles if a["id"] not in posted_ids]
     print(f"[INFO] スコアリング対象: {len(candidates)}件")
 
@@ -279,20 +299,19 @@ def main():
         if score >= BUZZ_THRESHOLD:
             scored.append((score, article))
 
-    # 点数の高い順に並べて上限まで投稿
     scored.sort(key=lambda x: x[0], reverse=True)
 
     for score, article in scored:
-        if buzz_posted >= BUZZ_MAX_POSTS:
-            print(f"[INFO] バズ投稿上限({BUZZ_MAX_POSTS}件)に達しました")
+        if buzz_notified >= BUZZ_MAX_POSTS:
+            print(f"[INFO] バズ通知上限({BUZZ_MAX_POSTS}件)に達しました")
             break
         print(f"\n[BUZZ🔥 {score}点] {article['country']} / {article['title'][:50]}...")
-        if process_and_post(article, posted_ids, is_buzz=True):
-            total_posted += 1
-            buzz_posted += 1
+        if process_and_notify(article, posted_ids, is_buzz=True):
+            total_notified += 1
+            buzz_notified += 1
 
     save_posted_ids(posted_ids)
-    print(f"\n=== 完了: 通常{total_posted - buzz_posted}件 + バズ{buzz_posted}件 = 計{total_posted}件投稿 ===\n")
+    print(f"\n=== 完了: 通常{total_notified - buzz_notified}件 + バズ{buzz_notified}件 = 計{total_notified}件通知 ===\n")
 
 
 if __name__ == "__main__":
