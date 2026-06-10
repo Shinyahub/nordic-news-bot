@@ -30,7 +30,7 @@ from pathlib import Path
 # 各国の「国内・地域ニュース」専用フィードを優先して使用
 NEWS_FEEDS = {
     # ノルウェー
-    "🇳🇴 ノルウェー(NRK国内)":      "https://www.nrk.no/norge/siste.rss",
+    "🇳🇴 ノルウェー(NRK国内)":      "https://www.nrk.no/nyheter/siste.rss",
     "🇳🇴 ノルウェー(NRK社会)":      "https://www.nrk.no/livsstil/siste.rss",
     # スウェーデン
     "🇸🇪 スウェーデン(SVT国内)":     "https://www.svt.se/nyheter/inrikes/rss.xml",
@@ -39,7 +39,7 @@ NEWS_FEEDS = {
     "🇫🇮 フィンランド(YLE国内)":     "https://feeds.yle.fi/uutiset/v1/recent.rss?publisherIds=YLE_UUTISET&formatId=49",
     "🇫🇮 フィンランド(YLE文化)":     "https://feeds.yle.fi/uutiset/v1/recent.rss?publisherIds=YLE_UUTISET&formatId=57",
     # デンマーク
-    "🇩🇰 デンマーク(DR国内)":        "https://www.dr.dk/nyheder/service/feeds/indblik",
+    "🇩🇰 デンマーク(DR国内)":        "https://www.dr.dk/nyheder/service/feeds/indland",
     "🇩🇰 デンマーク(DR地域)":        "https://www.dr.dk/nyheder/service/feeds/regionale",
 }
 
@@ -48,7 +48,7 @@ BUZZ_FEEDS = {
     "🇳🇴 ノルウェー(NRK人気)":      "https://www.nrk.no/toppsaker.rss",
     "🇸🇪 スウェーデン(SVT国内)":     "https://www.svt.se/nyheter/inrikes/rss.xml",
     "🇫🇮 フィンランド(YLE国内)":     "https://feeds.yle.fi/uutiset/v1/recent.rss?publisherIds=YLE_UUTISET&formatId=49",
-    "🇩🇰 デンマーク(DR国内)":        "https://www.dr.dk/nyheder/service/feeds/indblik",
+    "🇩🇰 デンマーク(DR国内)":        "https://www.dr.dk/nyheder/service/feeds/indland",
 }
 
 BUZZ_THRESHOLD = 8
