@@ -22,18 +22,33 @@ from pathlib import Path
 # 設定
 # ──────────────────────────────────────────
 
+# ──────────────────────────────────────────
+# 設定
+# ──────────────────────────────────────────
+
+# 通常投稿フィード
+# 各国の「国内・地域ニュース」専用フィードを優先して使用
 NEWS_FEEDS = {
-    "🇳🇴 ノルウェー(NRK)":  "https://www.nrk.no/nyheter/siste.rss",
-    "🇸🇪 スウェーデン(SVT)": "https://www.svt.se/nyheter/rss.xml",
-    "🇫🇮 フィンランド(YLE)": "https://feeds.yle.fi/uutiset/v1/recent.rss?publisherIds=YLE_UUTISET",
-    "🇩🇰 デンマーク(DR)":   "https://www.dr.dk/nyheder/service/feeds/allenyheder",
+    # ノルウェー
+    "🇳🇴 ノルウェー(NRK国内)":      "https://www.nrk.no/norge/siste.rss",
+    "🇳🇴 ノルウェー(NRK社会)":      "https://www.nrk.no/livsstil/siste.rss",
+    # スウェーデン
+    "🇸🇪 スウェーデン(SVT国内)":     "https://www.svt.se/nyheter/inrikes/rss.xml",
+    "🇸🇪 スウェーデン(SVT地域)":     "https://www.svt.se/nyheter/lokalt/rss.xml",
+    # フィンランド
+    "🇫🇮 フィンランド(YLE国内)":     "https://feeds.yle.fi/uutiset/v1/recent.rss?publisherIds=YLE_UUTISET&formatId=49",
+    "🇫🇮 フィンランド(YLE文化)":     "https://feeds.yle.fi/uutiset/v1/recent.rss?publisherIds=YLE_UUTISET&formatId=57",
+    # デンマーク
+    "🇩🇰 デンマーク(DR国内)":        "https://www.dr.dk/nyheder/service/feeds/indblik",
+    "🇩🇰 デンマーク(DR地域)":        "https://www.dr.dk/nyheder/service/feeds/regionale",
 }
 
+# バズ検知フィード（各国人気・注目記事）
 BUZZ_FEEDS = {
-    "🇳🇴 ノルウェー(NRK)":  "https://www.nrk.no/toppsaker.rss",
-    "🇸🇪 スウェーデン(SVT)": "https://www.svt.se/nyheter/rss.xml",
-    "🇫🇮 フィンランド(YLE)": "https://feeds.yle.fi/uutiset/v1/recent.rss?publisherIds=YLE_UUTISET",
-    "🇩🇰 デンマーク(DR)":   "https://www.dr.dk/nyheder/service/feeds/allenyheder",
+    "🇳🇴 ノルウェー(NRK人気)":      "https://www.nrk.no/toppsaker.rss",
+    "🇸🇪 スウェーデン(SVT国内)":     "https://www.svt.se/nyheter/inrikes/rss.xml",
+    "🇫🇮 フィンランド(YLE国内)":     "https://feeds.yle.fi/uutiset/v1/recent.rss?publisherIds=YLE_UUTISET&formatId=49",
+    "🇩🇰 デンマーク(DR国内)":        "https://www.dr.dk/nyheder/service/feeds/indblik",
 }
 
 BUZZ_THRESHOLD = 8
@@ -113,10 +128,14 @@ def summarize_with_claude(article: dict) -> dict:
 
 【条件】
 - 要約は60文字以内
-- 感想は50文字以内。日本との対比・日本人目線のツッコミ・シニカルなユーモアを交えた一言にする
-  （例：ストライキのニュース →「ストライキの無い日本の地下鉄とJRの職員の皆さん、ありがとう（合掌）」）
-  （例：福祉政策のニュース →「日本にも輸入したい制度ランキング、ぶっちぎり1位へ」）
-  （例：物価高のニュース →「北欧の物価高に震えつつ、日本の安さに一瞬感謝する月曜日」）
+- 感想は50文字以内。以下のパターンを記事の内容に応じて使い分けること：
+  【日本との対比】日本人目線のツッコミやシニカルな比較
+    例：ストライキ →「ストライキの無い日本の地下鉄とJRの職員の皆さん、ありがとう（合掌）」
+    例：福祉政策 →「日本にも輸入したい制度ランキング、ぶっちぎり1位へ」
+  【知らない文化・スポーツ・概念へのリアクション】日本人が首をかしげるような北欧独自のものに素直に反応
+    例：フロアボール →「そもそもフロアボールとは何ぞ…🤔」
+    例：珍しい祭り →「北欧にはまだ知らない世界がある…」
+  【そのままのユーモア】思わずくすっとくる一言
   ウケ狙いに走りすぎず、くすっと笑えるトーンで。絵文字は1〜2個まで
 - 固有名詞（人名・地名）はそのまま使う
 - ハッシュタグは付けない（後で付与する）
@@ -147,7 +166,36 @@ def summarize_with_claude(article: dict) -> dict:
         return {"summary": raw[:60], "comment": ""}
 
 
-def score_buzz(article: dict) -> int:
+def is_local_news(article: dict) -> bool:
+    """北欧・Nordic域内のニュースかどうかを判定する。国際ニュースはFalseを返す"""
+    prompt = f"""以下は北欧メディアの記事です。
+この記事が「北欧・Nordic域内（ノルウェー・スウェーデン・フィンランド・デンマーク・アイスランド・バルト三国など）で起きた出来事や社会・文化・政策に関するニュース」かどうか判定してください。
+
+【判定基準】
+- OK（現地ニュース）: 北欧国内の政治・社会・事件・スポーツ・文化・気候・地域の話題
+- OK（Nordic域内）: 北欧諸国間の外交・Nordic地域全体に関わる話題
+- NG（国際ニュース）: 北欧が主体でない国際政治（米国・中東・ロシアなど）、海外で起きた出来事
+  ただし「北欧からみた国際ニュースへの反応・影響」はOK
+
+「yes」か「no」の1単語だけ返してください。
+
+【タイトル】{article['title']}
+【概要】{article['summary'][:200]}"""
+
+    try:
+        message = _claude_client().messages.create(
+            model="claude-sonnet-4-5",
+            max_tokens=5,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        answer = message.content[0].text.strip().lower()
+        return answer.startswith("yes")
+    except Exception as e:
+        print(f"[WARN] ローカル判定失敗: {e} → 通過させる")
+        return True  # 判定失敗時は通過させる
+
+
+
     """記事の「日本人が読んで面白い度」を1〜10点で採点して返す"""
     prompt = f"""以下は北欧のニュース記事です。
 「日本人が読んで面白い・驚く・笑える・シェアしたくなる度」を1〜10の整数で採点してください。
@@ -248,10 +296,11 @@ def process_and_notify(article: dict, posted_ids: set, is_buzz: bool = False) ->
     buzz_label = "🔥 バズ記事！ " if is_buzz else ""
     notif_title = f"{buzz_label}{article['country']}"
 
-    # 通知本文（要約＋感想）
+    # 通知本文（要約＋感想＋URL）
     notif_message = f"{summary}"
     if comment:
         notif_message += f"\n💬 {comment}"
+    notif_message += f"\n\n🔗 {article['url']}"
 
     # URLスキーム：タップするとXアプリの投稿画面が開く
     x_url = build_x_url_scheme()
@@ -281,6 +330,11 @@ def main():
             print(f"[SKIP] 通知済み: {article['country']}")
             continue
         print(f"\n[REGULAR] {article['country']} / {article['title'][:50]}...")
+        # ローカルニュースフィルタリング
+        if not is_local_news(article):
+            print(f"  [SKIP] 国際ニュースのため除外")
+            posted_ids.add(article["id"])  # 次回も除外されるよう記録
+            continue
         if process_and_notify(article, posted_ids, is_buzz=False):
             total_notified += 1
 
@@ -294,6 +348,11 @@ def main():
 
     scored = []
     for article in candidates:
+        # ローカルニュースフィルタリング
+        if not is_local_news(article):
+            print(f"  [SKIP] 国際ニュースのため除外: {article['title'][:40]}...")
+            posted_ids.add(article["id"])
+            continue
         score = score_buzz(article)
         print(f"  [{score:2d}点] {article['country']} / {article['title'][:50]}...")
         if score >= BUZZ_THRESHOLD:
