@@ -1,52 +1,71 @@
 name: Nordic News Bot
 
 on:
-  # ──────────────────────────────────────────
-  # 1日6回 定期実行（UTC基準）
-  # UTC 00:00 → JST 09:00
-  # UTC 04:00 → JST 13:00
-  # UTC 08:00 → JST 17:00
-  # UTC 12:00 → JST 21:00
-  # UTC 16:00 → JST 01:00
-  # UTC 20:00 → JST 05:00
-  # ──────────────────────────────────────────
   schedule:
+    # ニュース: 1日6回 UTC 0,4,8,12,16,20時
     - cron: '0 0,4,8,12,16,20 * * *'
+    # トリビア: 1日2回 UTC 22時(JST朝7時) と UTC 11時(JST夜8時)
+    - cron: '0 22 * * *'
+    - cron: '0 11 * * *'
 
-  # cron-job.org などの外部サービスから叩けるよう
-  # 手動トリガーも有効化しておく（信頼性向上のため）
   workflow_dispatch:
+    inputs:
+      mode:
+        description: '実行モード (news / trivia / both)'
+        required: false
+        default: 'both'
 
 jobs:
   post-news:
+    if: |
+      github.event_name == 'workflow_dispatch' && (github.event.inputs.mode == 'news' || github.event.inputs.mode == 'both' || github.event.inputs.mode == '') ||
+      github.event_name == 'schedule' && (
+        contains('0 0 * * *,0 4 * * *,0 8 * * *,0 12 * * *,0 16 * * *,0 20 * * *', github.event.schedule)
+      )
     runs-on: ubuntu-latest
     timeout-minutes: 10
-
     steps:
-      - name: リポジトリをチェックアウト
-        uses: actions/checkout@v4
-
-      # 投稿済みIDファイルをキャッシュ（重複通知を防ぐ）
-      - name: 投稿済みIDキャッシュを復元
-        uses: actions/cache@v4
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
         with:
           path: posted_ids.json
           key: posted-ids-${{ github.run_id }}
-          restore-keys: |
-            posted-ids-
-
-      - name: Python セットアップ
-        uses: actions/setup-python@v5
+          restore-keys: posted-ids-
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
           cache: 'pip'
-
-      - name: 依存パッケージをインストール
-        run: pip install -r requirements.txt
-
-      - name: ニュース取得・要約・投稿を実行
+      - run: pip install -r requirements.txt
+      - name: ニュース取得・要約・通知を実行
         env:
           ANTHROPIC_API_KEY:  ${{ secrets.ANTHROPIC_API_KEY }}
           PUSHOVER_APP_TOKEN: ${{ secrets.PUSHOVER_APP_TOKEN }}
           PUSHOVER_USER_KEY:  ${{ secrets.PUSHOVER_USER_KEY }}
         run: python post_news.py
+
+  post-trivia:
+    if: |
+      github.event_name == 'workflow_dispatch' && (github.event.inputs.mode == 'trivia' || github.event.inputs.mode == 'both' || github.event.inputs.mode == '') ||
+      github.event_name == 'schedule' && (
+        github.event.schedule == '0 22 * * *' || github.event.schedule == '0 11 * * *'
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: used_trivia_ids.json
+          key: used-trivia-ids-${{ github.run_id }}
+          restore-keys: used-trivia-ids-
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+      - run: pip install -r requirements.txt
+      - name: トリビア通知を実行
+        env:
+          ANTHROPIC_API_KEY:  ${{ secrets.ANTHROPIC_API_KEY }}
+          PUSHOVER_APP_TOKEN: ${{ secrets.PUSHOVER_APP_TOKEN }}
+          PUSHOVER_USER_KEY:  ${{ secrets.PUSHOVER_USER_KEY }}
+        run: python post_trivia.py
