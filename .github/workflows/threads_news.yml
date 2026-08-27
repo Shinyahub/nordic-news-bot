@@ -1,0 +1,67 @@
+name: Nordic News Bot (Threads)
+
+on:
+  schedule:
+    # ニュース: 1日6回 UTC 0,4,8,12,16,20時
+    - cron: '0 0,4,8,12,16,20 * * *'
+    # トリビア: 1日2回 UTC 22時(JST朝7時) と UTC 11時(JST夜8時)
+    - cron: '0 22 * * *'
+    - cron: '0 11 * * *'
+
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: '実行モード (news / trivia / both)'
+        required: false
+        default: 'both'
+
+jobs:
+  post-news-threads:
+    if: |
+      github.event_name == 'workflow_dispatch' && (github.event.inputs.mode == 'news' || github.event.inputs.mode == 'both' || github.event.inputs.mode == '') ||
+      github.event_name == 'schedule' && contains('0 0 * * *,0 4 * * *,0 8 * * *,0 12 * * *,0 16 * * *,0 20 * * *', github.event.schedule)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: posted_ids_threads.json
+          key: posted-ids-threads-${{ github.run_id }}
+          restore-keys: posted-ids-threads-
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+      - run: pip install -r requirements.txt
+      - name: ニュース取得・要約・Threads投稿を実行
+        env:
+          ANTHROPIC_API_KEY:     ${{ secrets.ANTHROPIC_API_KEY }}
+          THREADS_USER_ID:       ${{ secrets.THREADS_USER_ID }}
+          THREADS_ACCESS_TOKEN:  ${{ secrets.THREADS_ACCESS_TOKEN }}
+        run: python post_threads.py
+
+  post-trivia-threads:
+    if: |
+      github.event_name == 'workflow_dispatch' && (github.event.inputs.mode == 'trivia' || github.event.inputs.mode == 'both' || github.event.inputs.mode == '') ||
+      github.event_name == 'schedule' && (github.event.schedule == '0 22 * * *' || github.event.schedule == '0 11 * * *')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: used_trivia_ids_threads.json
+          key: used-trivia-ids-threads-${{ github.run_id }}
+          restore-keys: used-trivia-ids-threads-
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+      - run: pip install -r requirements.txt
+      - name: トリビアThreads投稿を実行
+        env:
+          ANTHROPIC_API_KEY:     ${{ secrets.ANTHROPIC_API_KEY }}
+          THREADS_USER_ID:       ${{ secrets.THREADS_USER_ID }}
+          THREADS_ACCESS_TOKEN:  ${{ secrets.THREADS_ACCESS_TOKEN }}
+        run: python post_trivia_threads.py
